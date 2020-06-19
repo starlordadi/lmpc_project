@@ -15,6 +15,7 @@ class Mpc(Double_integrator):
 		self.goal = goal
 
 	def solve(self, q, safe_set, n_iter):
+		slack_thresh = 1.5*1e-8
 		#define variables
 		x = ca.SX.sym('x', self.n_state*(self.horizon + 1))
 		u = ca.SX.sym('u', self.n_action*self.horizon)
@@ -51,8 +52,11 @@ class Mpc(Double_integrator):
 		slack_obs_val = sol_x[self.n_state*(self.horizon + 1) + self.n_action*self.horizon + lam.shape[0] + self.n_state:]
 		lambd = sol_x[self.n_state*(self.horizon + 1) + self.n_action*self.horizon:\
 					self.n_state*(self.horizon + 1) + self.n_action*self.horizon + lam.shape[0]]
+		print(np.linalg.norm(slack_val))
+		feasible = (np.linalg.norm(slack_val) <= slack_thresh)
+		print(solver.stats()['success'])
 		# print(lambd)
-		return pred_horizon, u_pred
+		return pred_horizon, u_pred, feasible
 
 	def get_constraints(self, x, u, slack, slack_obst, lam, q, safe_set, n_iter):
 		constraints = []
@@ -97,7 +101,7 @@ class Mpc(Double_integrator):
 		N = self.horizon
 		goal = self.goal
 		#terminal constraint cost
-		cost = 1000*ca.dot(slack, slack)
+		cost = 10e8*ca.dot(slack, slack)
 
 		#stage cost
 		for i in range(N):
@@ -107,7 +111,7 @@ class Mpc(Double_integrator):
 		#terminal cost
 		val_list = [item for sublist in safe_set.value for item in sublist]
 		val_list = np.array(val_list).reshape([-1,1])
-		cost = cost + 10.0 * lam.T @ val_list
+		cost = cost + lam.T @ val_list
 
 		return cost
 

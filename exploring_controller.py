@@ -14,7 +14,7 @@ class Explorer(Double_integrator):
 		self.Q = Q
 		self.R = R
 
-	def solve(self, q0):
+	def solve(self, q0, safe_set, n_iter):
 		""" Exploration by going towards the start state from the goal state"""
 		goal = self.goal
 		N = self.horizon
@@ -24,6 +24,7 @@ class Explorer(Double_integrator):
 		x = ca.SX.sym('x', self.n_state*(self.horizon + 1))
 		u = ca.SX.sym('u', self.n_action*self.horizon)
 		ineq_slack = ca.SX.sym('slack', self.horizon-1)
+		# lam = ca.SX.sym('lam', safe_set.)
 		# get constraints
 		constraints, lbg, ubg = self.get_constraints(x=x,u=u, slack= ineq_slack, q=q0)
 		# get cost

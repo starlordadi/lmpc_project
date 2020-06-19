@@ -84,22 +84,26 @@ def main():
 	# plt.show()
 	# print(SS.value[0])
 	# 	run mpc with terminal constraint and get i-th trajectory
+	plt.ylim([-2,10])
+	plt.xlim([-10,0])
 	print('start Mpc')
 	# color = ['red', 'blue', 'green', 'black', 'brown']
 	for i in range(n_iter):
+		mpc.goal = goal_config
 		goal_reached = False
 		current_traj = Trajectory(n_state=n_state, n_action=n_action, mode='task')
 		q0 = start_config.reshape([n_state,1])
-		q_pred, u_pred = mpc.solve(q0, SS, i)
+		q_pred, u_pred, _ = mpc.solve(q0, SS, i)
 		q_next = q_pred[:,1].reshape([n_state,1])
-		# plt.plot(q_pred[0,:], q_pred[1,:], 'ro')
+		# if i==n_iter-1:
+			# plt.plot(q_pred[0,:], q_pred[1,:], marker='o')
 		# plt.show()
 		current_traj.append_data(q0, u_pred)
 		if (np.sum(abs(q_next - goal_config))) < 0.5:
 			goal_reached = True
 		while not goal_reached:
 			q0 = q_next
-			q_pred, u_pred = mpc.solve(q0, SS, i)
+			q_pred, u_pred, _ = mpc.solve(q0, SS, i)
 			q_next = q_pred[:,1].reshape([n_state,1])
 			# plt.plot(q_pred[0,:], q_pred[1,:], 'ro')
 			# plt.show()
@@ -112,36 +116,57 @@ def main():
 			state_list = np.hstack(state_list)
 			x_SS = state_list[0,:]
 			y_SS = state_list[1,:]
-			# plt.plot(x.T,y.T,'ro')
-			# plt.plot(x_SS, y_SS, 'bo')
-			# plt.plot(x_ellipse, y_ellipse)
-			# plt.show()
+			plt.cla()
+			plt.plot(x.T,y.T,'ro')
+			plt.plot(x_pid.T, y_pid.T)
+			plt.plot(x_ellipse, y_ellipse)
+			plt.pause(0.001)
 	# 	update safe-set and value function
 		# print(current_traj.get_length())
 		SS.update(traj=current_traj, iter_val=i, Q=Q, R=R, goal=goal_config)
-		exploration_traj = Trajectory(n_state=n_state, n_action = n_action, mode='exp')
+		exploration_traj = Trajectory(n_state=n_state, n_action = n_action, mode='task')
 		# run exploration controller and add to safe set
 		print('exploration started')
-		exp = Explorer(goal=start_config, solver='ipopt', n_state=n_state, n_action=n_action, horizon=5, Q=Q, R=R)
+		# exp = Explorer(goal=start_config, solver='ipopt', n_state=n_state, n_action=n_action, horizon=15, Q=Q, R=R)
+		mpc.goal = np.array([-(i+1), -2.0, 0, 0]).reshape([-1,1])
+		# mpc.goal = start_config
 		goal_reached = False
+		feasible = True
 		while not goal_reached:
 			q0 = q_next
-			q_pred, u_pred = exp.solve(q0)
+			q_pred, u_pred, feasible = mpc.solve(q0, SS, i+1)
 			q_next = q_pred[:,1].reshape([n_state,1])
-			exploration_traj.append_data(q0, u_pred)
-			if (np.sum(abs(q_next - start_config))) < 1.5:
+			# exploration_traj.append_data(q0, u_pred)
+			if (np.linalg.norm(q_next-q0)) < 0.001:
 				goal_reached = True
+				# print(q_next[3,:])
+				# print(q_next[2,:])
 			x = q_pred[0,:]
 			y = q_pred[1,:]
-			# plt.plot(x.T,y.T,'ro')
+			plt.cla()
+			plt.plot(x.T,y.T,'ro')
+			plt.plot(x_pid.T, y_pid.T)
+			plt.plot(x_ellipse, y_ellipse)
+			plt.pause(0.001)	
+		goal_reached = False
+		mpc.goal = goal_config		
+		while not goal_reached:
+			q0 = q_next
+			q_pred, u_pred, _ = mpc.solve(q0, SS, i+1)
+			q_next = q_pred[:,1].reshape([n_state,1])
+			# plt.plot(q_pred[0,:].T, q_pred[1,:].T, 'ro')
 			# plt.plot(x_pid.T, y_pid.T)
 			# plt.plot(x_ellipse, y_ellipse)
-			# plt.show()	
+			# plt.show()
+			exploration_traj.append_data(q0, u_pred)
+			if (np.sum(abs(q_next - goal_config))) < 0.5:
+				goal_reached = True
+
 
 		SS.update(traj=exploration_traj, iter_val=i, Q=Q, R=R, goal=start_config)
 		print('completed %d iteration' % (i))
-		print('task trajectory:', current_traj.get_length())
-		print('exploration trajectory:', exploration_traj.get_length())
+		# print('task trajectory:', current_traj.get_length())
+		# print('exploration trajectory:', exploration_traj.get_length())
 		# x_val = np.arange(current_traj.get_length())
 		# y_val = SS.value[i+1]
 		# plt.plot(x_val, y_val)
@@ -152,28 +177,41 @@ def main():
 		# y_explore = exploration_traj.compute_cost(Q=Q, R=R)
 		# plt.plot(x_task, y_task, color='blue')
 		# plt.plot(x_explore, y_explore, color='red')
-		# x = np.hstack(current_traj.state_arr)[0,:]
-		# y = np.hstack(current_traj.state_arr)[1,:]
+		x = np.hstack(current_traj.state_arr)[0,:]
+		y = np.hstack(current_traj.state_arr)[1,:]
 		# x = np.arange(len(current_traj.action_arr))
-		# plt.plot(x_ellipse, y_ellipse, color='black')
-		# plt.plot(x.T,y.T)
-		# plt.plot(x_pid.T, y_pid.T)
-		# plt.show()
+		state_list = [val for sublist in SS.safe_set for val in sublist]
+		state_list = np.hstack(state_list)
+		x_SS = state_list[0,:]
+		y_SS = state_list[1,:]
+
+		# plt.xlabel('x')
+		# plt.ylabel('y')
+		if i ==  n_iter-1:
+			plt.cla()
+			plt.plot(x_ellipse, y_ellipse, color='blue')
+			plt.plot(x.T,y.T, color='black')
+			plt.plot(x_pid.T, y_pid.T, color='red')
+		plt.show()
+		plt.cla()
 
 	# plot trajectories
 	# print(len(SS.value))
 	# for i in range(n_iter+1):
 	# 	print('no. of states:', len(SS.safe_set[i]))
 	# 	print('no. of values:', len(SS.value[i]))
-	x1 = np.arange(n_iter + 1)
-	y1 = [arr[0] for arr in SS.value]
-	plt.plot(x1,y1)
-	plt.show()
+	plt.plot(x_ellipse, y_ellipse, color='black')
+	# plt.plot(x_pid.T, y_pid.T)
 	state_list = [val for sublist in SS.safe_set for val in sublist]
 	state_list = np.hstack(state_list)
 	x = state_list[0,:]
 	y = state_list[1,:]
-	plt.plot(x,y, 'ro')
+	plt.plot(x,y,marker='.',color='red')
+	plt.show()
+	# plt.show()
+	x1 = np.arange(n_iter + 1)
+	y1 = [arr[0] for arr in SS.value]
+	plt.plot(x1,y1)
 	plt.show()
 	# print(SS.value)
 
