@@ -47,19 +47,19 @@ def main():
 	goal = [0, 0, 0, 0]
 	goal_arr = [[-5, 5, 0, 0], [0, 0, 0, 0]]
 	start = [-10, 0, 0, 0]
-	Q = 1.0*np.eye(n_state)
+	Q = 10.0*np.eye(n_state)
 	# Q[2,2] = 0
 	# Q[3,3] = 0
 	R = 1.0*np.eye(n_action)
-	x_ellipse, y_ellipse = get_ellipse(xs = -5, ys=1, a=2,b=1)
+	x_ellipse, y_ellipse = get_ellipse(xs = -5, ys=1, a=2,b=2)
 	# initialize map, start point, goal point, no. of iterations, safe-set, value function, mpc parameters
 	new_map = Map()
 	start_config = np.array(start).reshape([n_state, 1])
 	goal_config = np.array(goal).reshape([n_state, 1])
-	print(get_lqr_heuristic(start_config, np.array([-5, 2, 0, 0]).reshape([n_state,1]), Q, R) + \
-		get_lqr_heuristic(np.array([-5, 2, 0, 0]).reshape([n_state,1]), goal_config, Q, R))
+	# print(get_lqr_heuristic(start_config, np.array([-5, 2, 0, 0]).reshape([n_state,1]), Q, R) + \
+	# 	get_lqr_heuristic(np.array([-5, 2, 0, 0]).reshape([n_state,1]), goal_config, Q, R))
 	SS = Safe_set(n_iter=n_iter, n_state=n_state, n_action=n_action, goal = goal_config)
-	mpc = Mpc(horizon=8, n_state=n_state, n_action=n_action, Q=Q, R=R, goal = goal_config, solver='ipopt')
+	mpc = Mpc(horizon=5, n_state=n_state, n_action=n_action, Q=Q, R=R, goal = goal_config, solver='ipopt')
 	# initialize safe set with feasible solution
 	init_traj = Trajectory(n_state=n_state, n_action=n_action, mode='task')
 	pid = PID(goal = None, n_state = n_state, n_action = n_action)
@@ -129,7 +129,12 @@ def main():
 		print('exploration started')
 		# exp = Explorer(goal=start_config, solver='ipopt', n_state=n_state, n_action=n_action, horizon=15, Q=Q, R=R)
 		mpc.goal = np.array([-(i+1), -2.0, 0, 0]).reshape([-1,1])
-		# mpc.goal = start_config
+		var = (i+1)*np.ones(n_state)
+		var[-2:] = 0
+		# sampled_goal = np.random.normal(goal_config.reshape(-1), var)
+		# while (sampled_goal[0]+5)**2/4 + (sampled_goal[1]-1)**2/1 <= 1:
+		# 	sampled_goal = np.random.normal(goal_config.reshape(-1), var)
+		# mpc.goal = sampled_goal
 		goal_reached = False
 		feasible = True
 		while not goal_reached:
@@ -137,7 +142,7 @@ def main():
 			q_pred, u_pred, feasible = mpc.solve(q0, SS, i+1)
 			q_next = q_pred[:,1].reshape([n_state,1])
 			# exploration_traj.append_data(q0, u_pred)
-			if (np.linalg.norm(q_next-q0)) < 0.001:
+			if (np.linalg.norm(q_next-q0)) < 0.01:
 				goal_reached = True
 				# print(q_next[3,:])
 				# print(q_next[2,:])

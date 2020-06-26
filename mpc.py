@@ -52,9 +52,8 @@ class Mpc(Double_integrator):
 		slack_obs_val = sol_x[self.n_state*(self.horizon + 1) + self.n_action*self.horizon + lam.shape[0] + self.n_state:]
 		lambd = sol_x[self.n_state*(self.horizon + 1) + self.n_action*self.horizon:\
 					self.n_state*(self.horizon + 1) + self.n_action*self.horizon + lam.shape[0]]
-		print(np.linalg.norm(slack_val))
+
 		feasible = (np.linalg.norm(slack_val) <= slack_thresh)
-		print(solver.stats()['success'])
 		# print(lambd)
 		return pred_horizon, u_pred, feasible
 
@@ -75,7 +74,7 @@ class Mpc(Double_integrator):
 
 		#obstacle constraints
 		for i in range(1,N):
-			constraints = ca.vertcat(constraints, (x[n*i+0]+5)**2/4 + (x[n*i+1]-1)**2/1 - slack_obst[i-1])
+			constraints = ca.vertcat(constraints, (x[n*i+0]+5)**2/4 + (x[n*i+1]-1)**2/4 - slack_obst[i-1])
 
 		#terminal constraint
 		state_list = [val for sublist in safe_set.safe_set for val in sublist]
@@ -100,13 +99,18 @@ class Mpc(Double_integrator):
 		d = self.n_action
 		N = self.horizon
 		goal = self.goal
+		cost_mode = 'quad'
 		#terminal constraint cost
 		cost = 10e8*ca.dot(slack, slack)
 
 		#stage cost
-		for i in range(N):
-			cost = cost + (x[n*i:n*(i+1)]-goal).T @ self.Q @ (x[n*i:n*(i+1)]-goal)
-			cost = cost + u[d*i:d*(i+1)].T @ self.R @ u[d*i:d*(i+1)]
+		if cost_mode == 'quad':
+			for i in range(N):
+				cost = cost + (x[n*i:n*(i+1)]-goal).T @ self.Q @ (x[n*i:n*(i+1)]-goal)
+				cost = cost + u[d*i:d*(i+1)].T @ self.R @ u[d*i:d*(i+1)]
+		if cost_mode == 'unit':
+			for i in range(N):
+				cost = cost + 1.0
 
 		#terminal cost
 		val_list = [item for sublist in safe_set.value for item in sublist]
